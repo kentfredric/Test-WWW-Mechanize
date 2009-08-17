@@ -6,10 +6,10 @@ allow_leading_tabs = 0
 
 [-ControlStructures::ProhibitPostfixControls]
 
+[-Documentation::PodSpelling]
 [-Documentation::RequirePodAtEnd]
 [-Documentation::RequirePodSections]
 
-[-Editor::RequireEmacsFileVariables]
 [-ErrorHandling::RequireCarping]
 
 [-InputOutput::ProhibitInteractiveTest]
@@ -17,12 +17,27 @@ allow_leading_tabs = 0
 
 [-Miscellanea::RequireRcsKeywords]
 
+[Modules::ProhibitEvilModules]
+modules = Autoload Data::Dumper Date::Manip /Acme::/ Array::Iterator Carp::Always /Tie::/ Time::localtime Time::Local
+
 [-Modules::RequireVersionVar]
 
+[-RegularExpressions::RequireDotMatchAnything]
 [-RegularExpressions::RequireExtendedFormatting]
 [-RegularExpressions::RequireLineBoundaryMatching]
 
 [-ValuesAndExpressions::ProhibitConstantPragma]
 [-ValuesAndExpressions::ProhibitEmptyQuotes]
+[-ValuesAndExpressions::ProhibitMagicNumbers]
+[-ValuesAndExpressions::ProhibitNoisyQuotes]
+
+[ValuesAndExpressions::RequireQuotedHeredocTerminator]
+severity = 5
+
+[ValuesAndExpressions::RequireUpperCaseHeredocTerminator]
+severity = 5
 
 [-Variables::ProhibitPunctuationVars]
+[Variables::ProhibitPackageVars]
+packages = Test::Builder
+

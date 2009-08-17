@@ -6,7 +6,6 @@ use Test::More;
 use Test::Builder::Tester;
 
 use constant NONEXISTENT => 'http://blahblablah.xx-nonexistent.';
-
 BEGIN {
     if ( gethostbyname( 'blahblahblah.xx-nonexistent.' ) ) {
         plan skip_all => 'Found an A record for the non-existent domain';
@@ -26,7 +25,7 @@ my $server      = TestServer->new;
 my $pid         = $server->background;
 my $server_root = $server->root;
 
-my $mech = Test::WWW::Mechanize->new( autocheck => 0 );
+my $mech=Test::WWW::Mechanize->new();
 isa_ok($mech,'Test::WWW::Mechanize');
 
 GOOD_GET: {

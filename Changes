@@ -4,6 +4,43 @@ WWW::Mechanize and Test::WWW::Mechanize do not use rt.cpan.org for
 bug tracking.  They are now being tracked via Google Code at
 http://code.google.com/p/www-mechanize/issues/list
 
+NEXT
+------------------------------------
+Hoisted common code out of get_ok, post_ok, etc.
+
+Description of error in $mech->content_unlike() was wrong.
+
+Updated copyright and licensing information.
+
+
+1.24    Sat Jan 17 13:26:47 CST 2009
+------------------------------------
+Tests run on port 13432 instead of 8080.  It should really be a
+random open port, but for now, something other than 8080 will do.
+
+
+1.23_01 Mon Dec 22 17:43:46 CST 2008
+------------------------------------
+[FIXED]
+Tests would fail because we weren't unsetting http_proxy.
+
+Fixed many failed tests.  Overhauled the test server setup.
+
+
+[ENHANCEMENTS]
+Added autolinting capability, so you can do this:
+
+    my $mech = Test::WWW::Mechanize->new( autolint => 1 );
+    $mech->get_ok( $url );
+
+and the get_ok() will fail if the page is fetched, but the resultant HTML
+(if it is indeed text/html) does not pass HTML::Lint.
+
+Added $mech->click_ok().
+
+The user agent is now "Test-WWW-Mechanize/version" by default.
+
+
 1.22    Thu Nov 20 00:33:36 CST 2008
 ------------------------------------
 [ENHANCEMENTS]

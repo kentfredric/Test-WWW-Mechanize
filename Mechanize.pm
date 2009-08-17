@@ -9,11 +9,11 @@ Test::WWW::Mechanize - Testing-specific WWW::Mechanize subclass
 
 =head1 VERSION
 
-Version 1.22
+Version 1.24
 
 =cut
 
-our $VERSION = '1.22';
+our $VERSION = '1.24';
 
 =head1 SYNOPSIS
 
@@ -77,18 +77,66 @@ my $Test = Test::Builder->new();
 
 =head1 CONSTRUCTOR
 
-=head2 new
+=head2 new( %args )
 
 Behaves like, and calls, L<WWW::Mechanize>'s C<new> method.  Any parms
 passed in get passed to WWW::Mechanize's constructor.
+
+You can pass in C<< autolint => 1 >> to make Test::WWW::Mechanize
+automatically run HTML::Lint after any of the following methods are
+called.
+
+=over
+
+=item * get_ok()
+
+=back
+
+and will eventually do the same after any of the following:
+
+=over
+
+=item * post_ok()
+
+=item * back_ok()
+
+=item * submit_form_ok()
+
+=item * follow_link_ok()
+
+=item * click_ok()
+
+=back
+
+This means you no longerhave to do the following:
+
+    my $mech = Test::WWW::Mechanize->new();
+    $mech->get_ok( $url, 'Fetch the intro page' );
+    $mech->html_lint_ok( 'Intro page looks OK' );
+
+and can simply do
+
+    my $mech = Test::WWW::Mechanize->new( autolint => 1 );
+    $mech->get_ok( $url, 'Fetch the intro page' );
+
+The C<< $mech->get_ok() >> only counts as one test in the test count.  Both the
+main IO operation and the linting must pass for the entire test to pass.
 
 =cut
 
 sub new {
     my $class = shift;
-    my %mech_args = @_;
 
-    my $self = $class->SUPER::new( %mech_args );
+    my %args = (
+        agent => "Test-WWW-Mechanize/$VERSION",
+        @_
+    );
+
+    my $autolint = delete $args{autolint};
+
+    my $self = $class->SUPER::new( %args );
+
+    $self->{autolint} = $autolint;
 
     return $self;
 }
@@ -108,39 +156,34 @@ A default description of "GET $url" is used if none if provided.
 
 sub get_ok {
     my $self = shift;
-    my $url = shift;
 
-    my $desc;
-    my %opts;
-
-    if ( @_ ) {
-        my $flex = shift; # The flexible argument
-
-        if ( !defined( $flex ) ) {
-            $desc = shift;
-        }
-        elsif ( ref $flex eq 'HASH' ) {
-            %opts = %{$flex};
-            $desc = shift;
-        }
-        elsif ( ref $flex eq 'ARRAY' ) {
-            %opts = @{$flex};
-            $desc = shift;
-        }
-        else {
-            $desc = $flex;
-        }
-    } # parms left
+    my ($url,$desc,%opts) = $self->_unpack_args( 'GET', @_ );
 
     $self->get( $url, %opts );
     my $ok = $self->success;
 
-    if ( not defined $desc ) {
-        $url = $url->url if ref($url) eq 'WWW::Mechanize::Link';
-        $desc = "GET $url";
+    $ok = $self->_maybe_lint( $ok, $desc );
+
+    return $ok;
+}
+
+sub _maybe_lint {
+    my $self = shift;
+    my $ok   = shift;
+    my $desc = shift;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    if ( $ok ) {
+        if ( $self->is_html && $self->{autolint} ) {
+            $ok = $self->_lint_content_ok( $desc );
+        }
+        else {
+            $Test->ok( $ok, $desc );
+        }
     }
-    $Test->ok( $ok, $desc );
-    if ( !$ok ) {
+    else {
+        $Test->ok( $ok, $desc );
         $Test->diag( $self->status );
         $Test->diag( $self->response->message ) if $self->response;
     }
@@ -161,37 +204,12 @@ A default description of "HEAD $url" is used if none if provided.
 
 sub head_ok {
     my $self = shift;
-    my $url = shift;
 
-    my $desc;
-    my %opts;
-
-    if ( @_ ) {
-        my $flex = shift; # The flexible argument
-
-        if ( !defined( $flex ) ) {
-            $desc = shift;
-        }
-        elsif ( ref $flex eq 'HASH' ) {
-            %opts = %{$flex};
-            $desc = shift;
-        }
-       elsif ( ref $flex eq 'ARRAY' ) {
-            %opts = @{$flex};
-            $desc = shift;
-        }
-        else {
-            $desc = $flex;
-        }
-    } # parms left
+    my ($url,$desc,%opts) = $self->_unpack_args( 'HEAD', @_ );
 
     $self->head( $url, %opts );
     my $ok = $self->success;
 
-    if ( not defined $desc ) {
-        $url = $url->url if ref($url) eq 'WWW::Mechanize::Link';
-        $desc = "HEAD $url";
-    }
     $Test->ok( $ok, $desc );
     if ( !$ok ) {
         $Test->diag( $self->status );
@@ -200,6 +218,7 @@ sub head_ok {
 
     return $ok;
 }
+
 
 =head2 $mech->post_ok( $url, [ \%LWP_options ,] $desc )
 
@@ -214,34 +233,9 @@ A default description of "POST to $url" is used if none if provided.
 
 sub post_ok {
     my $self = shift;
-    my $url = shift;
 
-    my $desc;
-    my %opts;
+    my ($url,$desc,%opts) = $self->_unpack_args( 'POST', @_ );
 
-    if ( @_ ) {
-        my $flex = shift; # The flexible argument
-
-        if ( !defined( $flex ) ) {
-            $desc = shift;
-        }
-        elsif ( ref $flex eq 'HASH' ) {
-            %opts = %{$flex};
-            $desc = shift;
-        }
-        elsif ( ref $flex eq 'ARRAY' ) {
-            %opts = @{$flex};
-            $desc = shift;
-        }
-        else {
-            $desc = $flex;
-        }
-    } # parms left
-
-    if ( not defined $desc ) {
-        $url = $url->url if ref($url) eq 'WWW::Mechanize::Link';
-        $desc = "POST $url";
-    }
     $self->post( $url, \%opts );
     my $ok = $self->success;
     $Test->ok( $ok, $desc );
@@ -266,35 +260,10 @@ A default description of "PUT to $url" is used if none if provided.
 
 sub put_ok {
     my $self = shift;
-    my $url = shift;
 
-    my $desc;
-    my %opts;
-
-    if ( @_ ) {
-        my $flex = shift; # The flexible argument
-
-        if ( !defined( $flex ) ) {
-            $desc = shift;
-        }
-        elsif ( ref $flex eq 'HASH' ) {
-            %opts = %{$flex};
-            $desc = shift;
-        }
-        elsif ( ref $flex eq 'ARRAY' ) {
-            %opts = @{$flex};
-            $desc = shift;
-        }
-        else {
-            $desc = $flex;
-        }
-    } # parms left
-
-    if ( not defined $desc ) {
-        $url = $url->url if ref($url) eq 'WWW::Mechanize::Link';
-        $desc = "PUT $url";
-    }
+    my ($url,$desc,%opts) = $self->_unpack_args( 'PUT', @_ );
     $self->put( $url, \%opts );
+
     my $ok = $self->success;
     $Test->ok( $ok, $desc );
     if ( !$ok ) {
@@ -305,7 +274,7 @@ sub put_ok {
     return $ok;
 }
 
-=head2 submit_form_ok( \%parms [, $desc] )
+=head2 $mech->submit_form_ok( \%parms [, $desc] )
 
 Makes a C<submit_form()> call and executes tests on the results.
 The form must be found, and then submitted successfully.  Otherwise,
@@ -332,7 +301,7 @@ sub submit_form_ok {
     my $desc = shift;
 
     if ( ref $parms ne 'HASH' ) {
-       Carp::croak "FATAL: parameters must be given as a hashref";
+       Carp::croak 'FATAL: parameters must be given as a hashref';
     }
 
     # return from submit_form() is an HTTP::Response or undef
@@ -341,7 +310,7 @@ sub submit_form_ok {
     my $ok;
     my $error;
     if ( !$response ) {
-        $error = "No matching form found";
+        $error = 'No matching form found';
     }
     else {
         if ( $response->is_success ) {
@@ -386,12 +355,12 @@ sub follow_link_ok {
     my $desc = shift;
 
     if (!defined($desc)) {
-        my $parms_str = join(", ", map { join("=", $_, $parms->{$_}) } keys(%{$parms}));
-        $desc = "Followed link with '$parms_str'" if !defined($desc);
+        my $parms_str = join(', ', map { join('=', $_, $parms->{$_}) } keys(%{$parms}));
+        $desc = qq{Followed link with "$parms_str"} if !defined($desc);
     }
 
     if ( ref $parms ne 'HASH' ) {
-       Carp::croak "FATAL: parameters must be given as a hashref";
+       Carp::croak 'FATAL: parameters must be given as a hashref';
     }
 
     # return from follow_link() is an HTTP::Response or undef
@@ -400,7 +369,7 @@ sub follow_link_ok {
     my $ok;
     my $error;
     if ( !$response ) {
-        $error = "No matching link found";
+        $error = 'No matching link found';
     }
     else {
         if ( $response->is_success ) {
@@ -417,12 +386,76 @@ sub follow_link_ok {
     return $ok;
 }
 
+
+=head2 click_ok( $button[, $desc] )
+
+Clicks the button named by C<$button>.  An optional C<$desc> can
+be given for the test.
+
+=cut
+
+sub click_ok {
+    my $self   = shift;
+    my $button = shift;
+    my $desc   = shift;
+
+    my $response = $self->click( $button );
+    if ( !$response ) {
+        return $Test->ok( 0, $desc );
+    }
+
+    if ( !$response->is_success ) {
+        $Test->diag( "Failed test $desc:" );
+        $Test->diag( $response->as_string );
+        return $Test->ok( 0, $desc );
+    }
+    return $Test->ok( 1, $desc );
+}
+
+
+sub _unpack_args {
+    my $self   = shift;
+    my $method = shift;
+    my $url    = shift;
+
+    my $desc;
+    my %opts;
+
+    if ( @_ ) {
+        my $flex = shift; # The flexible argument
+
+        if ( !defined( $flex ) ) {
+            $desc = shift;
+        }
+        elsif ( ref $flex eq 'HASH' ) {
+            %opts = %{$flex};
+            $desc = shift;
+        }
+        elsif ( ref $flex eq 'ARRAY' ) {
+            %opts = @{$flex};
+            $desc = shift;
+        }
+        else {
+            $desc = $flex;
+        }
+    } # parms left
+
+    if ( not defined $desc ) {
+        $url = $url->url if ref($url) eq 'WWW::Mechanize::Link';
+        $desc = "$method $url";
+    }
+
+    return ($url, $desc, %opts);
+}
+
+
+
 =head1 METHODS: CONTENT CHECKING
 
-=head2 $mech->html_lint_ok( [$msg] )
+=head2 $mech->html_lint_ok( [$desc] )
 
 Checks the validity of the HTML on the current page.  If the page is not
-HTML, then it fails.  The URI is automatically appended to the I<$msg>.
+HTML, then it fails.  The URI is automatically appended to the I<$desc>.
 
 Note that HTML::Lint must be installed for this to work.  Otherwise,
 it will blow up.
@@ -431,42 +464,54 @@ it will blow up.
 
 sub html_lint_ok {
     my $self = shift;
-    my $msg = shift;
-
-    eval 'require HTML::Lint';
-    $@ and die 'html_lint_ok cannot run without HTML::Lint';
+    my $desc = shift;
 
     my $uri = $self->uri;
-    $msg = $msg ? "$msg ($uri)" : $uri;
+    $desc = $desc ? "$desc ($uri)" : $uri;
 
     my $ok;
 
     if ( $self->is_html ) {
-
-        my $lint = HTML::Lint->new;
-        $lint->parse( $self->content );
-
-        my @errors = $lint->errors;
-        my $nerrors = @errors;
-        if ( $nerrors ) {
-            $ok = $Test->ok( 0, $msg );
-            $Test->diag( "HTML::Lint errors for $uri" );
-            $Test->diag( $_->as_string ) for @errors;
-            my $s = $nerrors == 1 ? '' : 's';
-            $Test->diag( "$nerrors error$s on the page" );
-        }
-        else {
-            $ok = $Test->ok( 1, $msg );
-        }
+        $ok = $self->_lint_content_ok( $desc );
     }
     else {
-        $ok = $Test->ok( 0, $msg );
+        $ok = $Test->ok( 0, $desc );
         $Test->diag( q{This page doesn't appear to be HTML, or didn't get the proper text/html content type returned.} );
     }
 
     return $ok;
 }
 
+sub _lint_content_ok {
+    my $self = shift;
+    my $desc = shift;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    if ( not ( eval 'require HTML::Lint' ) ) {
+        die "Test::WWW::Mechanize can't do linting without HTML::Lint: $@";
+    }
+
+    # XXX Combine with the cut'n'paste version in get_ok()
+    my $lint = HTML::Lint->new;
+    $lint->parse( $self->content );
+
+    my @errors = $lint->errors;
+    my $nerrors = @errors;
+    my $ok;
+    if ( $nerrors ) {
+        $ok = $Test->ok( 0, $desc );
+        $Test->diag( 'HTML::Lint errors for ' . $self->uri );
+        $Test->diag( $_->as_string ) for @errors;
+        my $s = $nerrors == 1 ? '' : 's';
+        $Test->diag( "$nerrors error$s on the page" );
+    }
+    else {
+        $ok = $Test->ok( 1, $desc );
+    }
+
+    return $ok;
+}
 
 =head2 $mech->title_is( $str [, $desc ] )
 
@@ -480,7 +525,7 @@ sub title_is {
     my $self = shift;
     my $str = shift;
     my $desc = shift;
-    $desc = "Title is '$str'" if !defined($desc);
+    $desc = qq{Title is "$str"} if !defined($desc);
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     return is_string( $self->title, $str, $desc );
@@ -498,7 +543,7 @@ sub title_like {
     my $self = shift;
     my $regex = shift;
     my $desc = shift;
-    $desc = "Title is like '$regex'" if !defined($desc);
+    $desc = qq{Title is like "$regex"} if !defined($desc);
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     return like_string( $self->title, $regex, $desc );
@@ -516,7 +561,7 @@ sub title_unlike {
     my $self = shift;
     my $regex = shift;
     my $desc = shift;
-    $desc = "Title unlike '$regex'" if !defined($desc);
+    $desc = qq{Title is unlike "$regex"} if !defined($desc);
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     return unlike_string( $self->title, $regex, $desc );
@@ -534,7 +579,7 @@ sub base_is {
     my $self = shift;
     my $str = shift;
     my $desc = shift;
-    $desc = "Base is '$str'" if !defined($desc);
+    $desc = qq{Base is "$str"} if !defined($desc);
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     return is_string( $self->base, $str, $desc );
@@ -552,7 +597,7 @@ sub base_like {
     my $self = shift;
     my $regex = shift;
     my $desc = shift;
-    $desc = "Base is like '$regex'" if !defined($desc);
+    $desc = qq{Base is like "$regex"} if !defined($desc);
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     return like_string( $self->base, $regex, $desc );
@@ -570,7 +615,7 @@ sub base_unlike {
     my $self = shift;
     my $regex = shift;
     my $desc = shift;
-    $desc = "Base unlike '$regex'" if !defined($desc);
+    $desc = qq{Base is unlike "$regex"} if !defined($desc);
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     return unlike_string( $self->base, $regex, $desc );
@@ -606,7 +651,7 @@ sub content_contains {
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     if ( ref($str) eq 'REGEX' ) {
-        diag( "content_contains takes a string, not a regex" );
+        diag( 'content_contains takes a string, not a regex' );
     }
     $desc = qq{Content contains "$str"} if !defined($desc);
 
@@ -643,7 +688,7 @@ sub content_like {
     my $self = shift;
     my $regex = shift;
     my $desc = shift;
-    $desc = "Content is like '$regex'" if !defined($desc);
+    $desc = qq{Content is like "$regex"} if !defined($desc);
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     return like_string( $self->content, $regex, $desc );
@@ -659,7 +704,7 @@ sub content_unlike {
     my $self = shift;
     my $regex = shift;
     my $desc = shift;
-    $desc = "Content unlike '$regex'" if !defined($desc);
+    $desc = qq{Content is unlike "$regex"} if !defined($desc);
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
     return unlike_string( $self->content, $regex, $desc );
@@ -676,7 +721,7 @@ sub has_tag {
     my $tag  = shift;
     my $text = shift;
     my $desc = shift;
-    $desc = "Page has $tag tag with '$text'" if !defined($desc);
+    $desc = qq{Page has $tag tag with "$text"} if !defined($desc);
 
     my $found = $self->_tag_walk( $tag, sub { $text eq $_[0] } );
 
@@ -695,7 +740,7 @@ sub has_tag_like {
     my $tag  = shift;
     my $regex = shift;
     my $desc = shift;
-    $desc = "Page has $tag tag like '$regex'" if !defined($desc);
+    $desc = qq{Page has $tag tag like "$regex"} if !defined($desc);
 
     my $found = $self->_tag_walk( $tag, sub { $_[0] =~ $regex } );
 
@@ -727,7 +772,7 @@ https links.
 sub followable_links {
     my $self = shift;
 
-    return $self->find_all_links( url_abs_regex => qr[^https?://] );
+    return $self->find_all_links( url_abs_regex => qr{^https?://} );
 }
 
 =head2 $mech->page_links_ok( [ $desc ] )
@@ -997,8 +1042,8 @@ sub link_content_unlike {
 # Create a default description for the link_* methods, including the link count.
 sub _default_links_desc {
     my ($urls, $desc_suffix) = @_;
-    my $url_count = scalar(@$urls);
-    return sprintf("%d link%s %s", $url_count, $url_count == 1 ? "" : "s", $desc_suffix);
+    my $url_count = scalar(@{$urls});
+    return sprintf( '%d link%s %s', $url_count, $url_count == 1 ? '' : 's', $desc_suffix );
 }
 
 # This actually performs the status check of each url.
@@ -1014,7 +1059,7 @@ sub _check_links_status {
 
     my @failures;
 
-    for my $url ( @$urls ) {
+    for my $url ( @{$urls} ) {
         if ( $mech->follow_link( url => $url ) ) {
             if ( $test eq 'is' ) {
                 push( @failures, $url ) unless $mech->status() == $status;
@@ -1044,7 +1089,7 @@ sub _check_links_content {
     my $mech = $self->clone();
 
     my @failures;
-    for my $url ( @$urls ) {
+    for my $url ( @{$urls} ) {
         if ( $mech->follow_link( url => $url ) ) {
             my $content=$mech->content();
             if ( $test eq 'like' ) {
@@ -1285,10 +1330,20 @@ and Pete Krawczyk for patches.
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2004-2007 Andy Lester, all rights reserved.
+Copyright 2004-2009 Andy Lester.
 
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+This program is free software; you can redistribute it and/or
+modify it under the terms of either:
+
+=over 4
+
+=item * the GNU General Public License as published by the Free
+Software Foundation; either version 1, or (at your option) any
+later version, or
+
+=item * the Artistic License version 2.0.
+
+=back
 
 =cut
 

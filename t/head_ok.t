@@ -4,9 +4,6 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Builder::Tester;
-use URI::file;
-
-use constant PORT => 13432;
 
 use constant NONEXISTENT => 'http://blahblablah.xx-nonexistent.';
 BEGIN {
@@ -16,25 +13,23 @@ BEGIN {
 }
 
 BEGIN {
-    $ENV{http_proxy} = ''; # All our tests are running on localhost
-    plan tests => 12;
+    plan tests => 11;
     use_ok( 'Test::WWW::Mechanize' );
 }
 
 
-my $server=TWMServer->new(PORT);
-my $pid=$server->background;
-ok( $pid,'HTTP Server started' ) or die "Can't start the server";
-sleep 1; # $server->background() may come back prematurely, so give it a second to fire up
+use lib 't';
+use TestServer;
 
-sub cleanup { kill(9,$pid) if !$^S };
-$SIG{__DIE__}=\&cleanup;
+my $server      = TestServer->new;
+my $pid         = $server->background;
+my $server_root = $server->root;
 
 my $mech=Test::WWW::Mechanize->new( autocheck => 0 );
 isa_ok($mech,'Test::WWW::Mechanize');
 
 GOOD_HEAD: { # Stop giggling, you!
-    my $goodlinks='http://localhost:'.PORT.'/goodlinks.html';
+    my $goodlinks = "$server_root/goodlinks.html";
 
     $mech->head($goodlinks);
     ok($mech->success, 'sanity check: we can load goodlinks.html');
@@ -42,8 +37,8 @@ GOOD_HEAD: { # Stop giggling, you!
     test_out('ok 1 - Try to HEAD goodlinks.html');
     my $ok = $mech->head_ok($goodlinks, 'Try to HEAD goodlinks.html');
     test_test('HEAD existing URI and reports success');
-    is( ref($ok), '', "head_ok() should only return a scalar" );
-    ok( $ok, "And the result should be true" );
+    is( ref($ok), '', 'head_ok() should only return a scalar' );
+    ok( $ok, 'And the result should be true' );
 
     # default desc
     test_out("ok 1 - HEAD $goodlinks");
@@ -52,44 +47,19 @@ GOOD_HEAD: { # Stop giggling, you!
 }
 
 BAD_HEAD: {
-    my $badurl = "http://wango.nonexistent.xx-only-testing/";
+    my $badurl = 'http://wango.nonexistent.xx-only-testing/';
     $mech->head($badurl);
-    ok(!$mech->success, "sanity check: we can't load NONEXISTENT.html");
+    ok(!$mech->success, q{sanity check: we can't load NONEXISTENT.html} );
 
     test_out( 'not ok 1 - Try to HEAD bad URL' );
     test_fail( +3 );
-    test_diag( "500" );
-    test_diag( "Can't connect to wango.nonexistent.xx-only-testing:80 (Bad hostname 'wango.nonexistent.xx-only-testing')" );
+    test_diag( '500' );
+    test_diag( q{Can't connect to wango.nonexistent.xx-only-testing:80 (Bad hostname 'wango.nonexistent.xx-only-testing')} );
     my $ok = $mech->head_ok( $badurl, 'Try to HEAD bad URL' );
     test_test( 'Fails to HEAD nonexistent URI and reports failure' );
 
-    is( ref($ok), '', "head_ok() should only return a scalar" );
-    ok( !$ok, "And the result should be false" );
+    is( ref($ok), '', 'head_ok() should only return a scalar' );
+    ok( !$ok, 'And the result should be false' );
 }
 
-
-cleanup();
-
-{
-    package TWMServer;
-    use base 'HTTP::Server::Simple::CGI';
-
-    sub handle_request {
-        my $self=shift;
-        my $cgi=shift;
-
-        my $file=(split('/',$cgi->path_info))[-1]||'index.html';
-        $file=~s/\s+//g;
-
-        if(-r "t/html/$file") {
-            if(my $response=do { local (@ARGV, $/) = "t/html/$file"; <> }) {
-                print "HTTP/1.0 200 OK\r\n";
-                print "Content-Type: text/html\r\nContent-Length: ",
-                length($response), "\r\n\r\n", $response;
-                return;
-            }
-        }
-
-        print "HTTP/1.0 404 Not Found\r\n\r\n";
-    }
-}
+$server->stop;

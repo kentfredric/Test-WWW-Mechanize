@@ -10,7 +10,7 @@ my $parms = {
     PL_FILES            => {},
     PREREQ_PM => {
         'Carp::Assert::More'        => 0,
-        'HTTP::Server::Simple'      => '0.07',
+        'HTTP::Server::Simple'      => '0.35',
         'HTTP::Server::Simple::CGI' => 0,
         'Test::Builder::Tester'     => '1.09',
         'Test::LongString'          => '0.07',
@@ -22,13 +22,21 @@ my $parms = {
     clean               => { FILES => 'Test-WWW-Mechanize-*' },
 };
 
-if ( $ExtUtils::MakeMaker::VERSION eq '6.36' ) {
-    $parms->{EXTRA_META} = <<EOF;
-resources:
-    homepage: http://code.google.com/p/www-mechanize/
-    bugtracker: http://code.google.com/p/www-mechanize/issues/list
-EOF
-    }
+if ( $ExtUtils::MakeMaker::VERSION ge '6.45_01' ) {
+    $parms->{META_MERGE} = {
+        resources => {
+            license     => 'http://dev.perl.org/licenses/',
+            homepage    => 'http://code.google.com/p/www-mechanize/',
+            bugtracker  => 'http://code.google.com/p/www-mechanize/issues/list',
+            Repository  => 'http://code.google.com/p/www-mechanize/source',
+            MailingList => 'http://groups.google.com/group/www-mechanize-users',
+        }
+    };
+    $parms->{LICENSE} = 'perl';
+}
+if ( $ExtUtils::MakeMaker::VERSION ge '6.47_02' ) {
+    $parms->{MIN_PERL_VERSION} = 5.008;
+}
 
 WriteMakefile( %{$parms} );
 
