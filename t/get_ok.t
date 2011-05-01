@@ -48,14 +48,14 @@ GOOD_GET: {
 }
 
 BAD_GET: {
-    my $badurl = 'http://wango.nonexistent.xx-only-testing/';
+    my $badurl = 'http://wango.nonexistent.xx-only-testing./';
     $mech->get($badurl);
     ok(!$mech->success, q{sanity check: we can't load NONEXISTENT.html});
 
     test_out( 'not ok 1 - Try to get bad URL' );
     test_fail( +3 );
     test_diag( '500' );
-    test_diag( q{Can't connect to wango.nonexistent.xx-only-testing:80 (Bad hostname 'wango.nonexistent.xx-only-testing')} );
+    test_diag( q{Can't connect to wango.nonexistent.xx-only-testing.:80 (Bad hostname)} );
     my $ok = $mech->get_ok( $badurl, 'Try to get bad URL' );
     test_test( 'Fails to get nonexistent URI and reports failure' );
 
