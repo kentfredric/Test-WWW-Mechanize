@@ -34,7 +34,7 @@ $mech->page_links_content_like(qr/Test/,'Checking all page links contain: Test')
 test_test('Handles All page links contents successful');
 
 # like - default desc
-test_out(q{ok 1 - All links are like "(?-xism:Test)"});
+test_out(q{ok 1 - All links are like "(?^:Test)"});
 $mech->page_links_content_like(qr/Test/);
 test_test('Handles All page links contents successful');
 
